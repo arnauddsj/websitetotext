@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, shallowRef } from "vue";
+import { ref, onMounted, shallowRef, computed } from "vue";
 import axios from "axios";
 import { EditorView, basicSetup } from "codemirror";
 import { json } from "@codemirror/lang-json";
 import { EditorState } from "@codemirror/state";
 import { lineNumbers } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
+import DOMPurify from "dompurify";
 
 interface CrawlResult {
   pages: Array<{
@@ -26,11 +27,41 @@ const loading = ref(false);
 const editorElement = ref(null);
 const editorView = shallowRef<EditorView | null>(null);
 
+const normalizedUrl = computed(() => {
+  let normalizedUrl = url.value.trim().toLowerCase();
+  if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+    normalizedUrl = "https://" + normalizedUrl;
+  }
+  return normalizedUrl;
+});
+
+const isValidUrl = computed(() => {
+  try {
+    new URL(normalizedUrl.value);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+const isValidMaxPages = computed(() => {
+  return Number.isInteger(maxPages.value) && maxPages.value > 0 && maxPages.value <= 100;
+});
+
+const canCrawl = computed(() => isValidUrl.value && isValidMaxPages.value);
+
 const handleKeyPress = (event: KeyboardEvent) => {
   if (event.key === "Enter") {
     crawlWebsite();
   }
 };
+
+const sanitizeContent = (content: string) => {
+  return DOMPurify.sanitize(content);
+};
+
+const lastCrawlTime = ref(0);
+const CRAWL_COOLDOWN = 5000; // 5 seconds
 
 onMounted(() => {
   const state = EditorState.create({
@@ -69,25 +100,57 @@ onMounted(() => {
   }
 });
 
+axios.defaults.withCredentials = true;
+
 const crawlWebsite = async () => {
+  const now = Date.now();
+  if (now - lastCrawlTime.value < CRAWL_COOLDOWN) {
+    alert(
+      `Please wait ${Math.ceil(
+        (CRAWL_COOLDOWN - (now - lastCrawlTime.value)) / 1000
+      )} seconds before crawling again.`
+    );
+    return;
+  }
+
+  lastCrawlTime.value = now;
+
+  if (!canCrawl.value) {
+    alert("Please enter a valid URL and number of pages (1-100).");
+    return;
+  }
   loading.value = true;
   try {
-    const response = await axios.post("http://localhost:8000/crawl", {
-      url: url.value,
-      max_pages: maxPages.value,
-    });
+    const response = await axios.post(
+      "http://localhost:8000/crawl",
+      {
+        url: normalizedUrl.value,
+        max_pages: maxPages.value,
+      },
+      {
+        headers: {
+          "X-CSRF-TOKEN":
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+            "",
+        },
+      }
+    );
     result.value = response.data;
 
     // Update the editor content
     if (editorView.value) {
       const jsonString = JSON.stringify(result.value, null, 2);
       editorView.value.dispatch({
-        changes: { from: 0, to: editorView.value.state.doc.length, insert: jsonString },
+        changes: {
+          from: 0,
+          to: editorView.value.state.doc.length,
+          insert: sanitizeContent(jsonString),
+        },
       });
     }
   } catch (error) {
     console.error("Error:", error);
-    alert("An error occurred while crawling the website.");
+    alert("An error occurred while crawling the website. Please try again later.");
   } finally {
     loading.value = false;
   }
@@ -155,11 +218,11 @@ const convertToTxt = () => {
     <div class="input-group">
       <input
         v-model="url"
-        placeholder="Enter website URL"
+        placeholder="Enter website URL (e.g., example.com)"
         @keyup.enter="handleKeyPress"
       />
       <input v-model="maxPages" type="number" placeholder="Max pages to crawl" />
-      <button @click="crawlWebsite" :disabled="loading">
+      <button @click="crawlWebsite" :disabled="loading || !canCrawl">
         {{ loading ? "Crawling..." : "Crawl Website" }}
       </button>
       <button @click="downloadJSON" :disabled="!result">Download JSON</button>
