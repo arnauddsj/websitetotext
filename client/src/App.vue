@@ -7,12 +7,24 @@ import { EditorState } from "@codemirror/state";
 import { lineNumbers } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 
+interface CrawlResult {
+  pages: Array<{
+    content: {
+      h1?: string[];
+      h2?: string[];
+      h3?: string[];
+      h4?: string[];
+      text?: string[];
+    };
+  }>;
+}
+
 const url = ref("");
 const maxPages = ref(10);
-const result = ref(null);
+const result = ref<CrawlResult | null>(null);
 const loading = ref(false);
 const editorElement = ref(null);
-const editorView = shallowRef(null);
+const editorView = shallowRef<EditorView | null>(null);
 
 onMounted(() => {
   const state = EditorState.create({
@@ -43,10 +55,12 @@ onMounted(() => {
     ],
   });
 
-  editorView.value = new EditorView({
-    state,
-    parent: editorElement.value,
-  });
+  if (editorElement.value) {
+    editorView.value = new EditorView({
+      state,
+      parent: editorElement.value,
+    });
+  }
 });
 
 const crawlWebsite = async () => {
@@ -59,10 +73,12 @@ const crawlWebsite = async () => {
     result.value = response.data;
 
     // Update the editor content
-    const jsonString = JSON.stringify(result.value, null, 2);
-    editorView.value.dispatch({
-      changes: { from: 0, to: editorView.value.state.doc.length, insert: jsonString },
-    });
+    if (editorView.value) {
+      const jsonString = JSON.stringify(result.value, null, 2);
+      editorView.value.dispatch({
+        changes: { from: 0, to: editorView.value.state.doc.length, insert: jsonString },
+      });
+    }
   } catch (error) {
     console.error("Error:", error);
     alert("An error occurred while crawling the website.");
@@ -72,12 +88,47 @@ const crawlWebsite = async () => {
 };
 
 const downloadJSON = () => {
+  if (!editorView.value) return;
   const jsonString = editorView.value.state.doc.toString();
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = "crawl_result.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const convertToTxt = () => {
+  if (!result.value || !Array.isArray(result.value.pages)) {
+    console.error("No valid result to convert");
+    return;
+  }
+
+  const content = result.value.pages.flatMap((page) => {
+    if (!page || typeof page.content !== "object") return [];
+
+    const headers = ["h1", "h2", "h3", "h4"].flatMap((h) =>
+      Array.isArray(page.content[h as keyof typeof page.content])
+        ? page.content[h as keyof typeof page.content]
+        : []
+    );
+    const text = Array.isArray(page.content.text) ? page.content.text : [];
+    return [...headers, ...text];
+  });
+
+  const txtContent = content.join("\n\n");
+
+  // Use the Blob API for better cross-browser compatibility
+  const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "crawl_result.txt";
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -95,6 +146,7 @@ const downloadJSON = () => {
         {{ loading ? "Crawling..." : "Crawl Website" }}
       </button>
       <button @click="downloadJSON" :disabled="!result">Download JSON</button>
+      <button @click="convertToTxt" :disabled="!result">Download TXT</button>
     </div>
     <div class="editor-container" ref="editorElement"></div>
   </div>
