@@ -24,7 +24,11 @@ onMounted(() => {
       EditorView.theme({
         "&": { height: "100%", width: "100%" },
         ".cm-scroller": { overflow: "auto" },
-        ".cm-content": { whiteSpace: "pre-wrap", wordBreak: "break-word" },
+        ".cm-content": {
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          textAlign: "left",
+        },
       }),
       EditorView.updateListener.of((v) => {
         if (v.docChanged) {
@@ -114,5 +118,10 @@ const downloadJSON = () => {
 }
 :deep(.cm-scroller) {
   overflow: auto;
+}
+:deep(.cm-content) {
+  text-align: left !important;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
