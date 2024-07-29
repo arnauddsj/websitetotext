@@ -1,10 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, shallowRef } from "vue";
 import axios from "axios";
 import { EditorView, basicSetup } from "codemirror";
 import { json } from "@codemirror/lang-json";
 import { EditorState } from "@codemirror/state";
 import { lineNumbers } from "@codemirror/view";
+import { oneDark } from "@codemirror/theme-one-dark";
 
 const url = ref("");
 const maxPages = ref(10);
@@ -21,12 +22,16 @@ onMounted(() => {
       json(),
       lineNumbers(),
       EditorView.lineWrapping,
+      oneDark,
       EditorView.theme({
-        "&": { height: "100%", width: "100%" },
+        "&": { height: "100%" },
         ".cm-scroller": { overflow: "auto" },
         ".cm-content": {
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
+          fontFamily: "monospace",
+          textAlign: "left",
+        },
+        ".cm-line": {
+          padding: "0 4px",
           textAlign: "left",
         },
       }),
@@ -115,13 +120,13 @@ const downloadJSON = () => {
 }
 :deep(.cm-editor) {
   height: 100%;
+  font-size: 14px;
 }
-:deep(.cm-scroller) {
-  overflow: auto;
-}
-:deep(.cm-content) {
+:deep(.cm-content),
+:deep(.cm-line) {
   text-align: left !important;
-  white-space: pre-wrap;
-  word-break: break-word;
+}
+:deep(.cm-activeLineGutter) {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 </style>
