@@ -22,6 +22,8 @@ interface CrawlResult {
 
 const url = ref("");
 const maxPages = ref(10);
+const MAX_CRAWL_PAGES = 100;
+const displayMaxPages = ref(maxPages.value.toString());
 const result = ref<CrawlResult | null>(null);
 const loading = ref(false);
 const editorElement = ref(null);
@@ -49,7 +51,7 @@ const isValidUrl = computed(() => {
 });
 
 const isValidMaxPages = computed(() => {
-  return Number.isInteger(maxPages.value) && maxPages.value > 0 && maxPages.value <= 100;
+  return Number.isInteger(maxPages.value) && maxPages.value > 0;
 });
 
 const canCrawl = computed(() => isValidUrl.value && isValidMaxPages.value);
@@ -66,6 +68,14 @@ const sanitizeContent = (content: string) => {
 
 const lastCrawlTime = ref(0);
 const CRAWL_COOLDOWN = 5000; // 5 seconds
+
+const updateMaxPages = () => {
+  const parsed = parseInt(displayMaxPages.value, 10);
+  if (!isNaN(parsed)) {
+    maxPages.value = Math.min(parsed, MAX_CRAWL_PAGES);
+  }
+  displayMaxPages.value = maxPages.value.toString();
+};
 
 onMounted(() => {
   const state = EditorState.create({
@@ -120,7 +130,7 @@ const crawlWebsite = async () => {
   lastCrawlTime.value = now;
 
   if (!canCrawl.value) {
-    alert("Please enter a valid URL and number of pages (1-100).");
+    alert(`Please enter a valid URL and number of pages (1-${MAX_CRAWL_PAGES}).`);
     return;
   }
   loading.value = true;
@@ -225,7 +235,12 @@ const convertToTxt = () => {
         placeholder="Enter website URL (e.g., example.com)"
         @keyup.enter="handleKeyPress"
       />
-      <input v-model="maxPages" type="number" placeholder="Max pages to crawl" />
+      <input
+        v-model="displayMaxPages"
+        type="number"
+        :placeholder="`Max pages to crawl (1-${MAX_CRAWL_PAGES})`"
+        @input="updateMaxPages"
+      />
       <button @click="crawlWebsite" :disabled="loading || !canCrawl">
         {{ loading ? "Crawling..." : "Crawl Website" }}
       </button>
