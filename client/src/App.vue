@@ -26,6 +26,12 @@ const loading = ref(false);
 const editorElement = ref(null);
 const editorView = shallowRef<EditorView | null>(null);
 
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === "Enter") {
+    crawlWebsite();
+  }
+};
+
 onMounted(() => {
   const state = EditorState.create({
     doc: "",
@@ -102,8 +108,11 @@ const downloadJSON = () => {
 };
 
 const convertToTxt = () => {
+  console.log("Converting to TXT, result:", result.value);
+
   if (!result.value || !Array.isArray(result.value.pages)) {
-    console.error("No valid result to convert");
+    console.error("Invalid result structure:", result.value);
+    alert("The data structure is not in the expected format.");
     return;
   }
 
@@ -119,7 +128,11 @@ const convertToTxt = () => {
     return [...headers, ...text];
   });
 
+  console.log("Processed content:", content);
+
   const txtContent = content.join("\n\n");
+
+  console.log("Final TXT content length:", txtContent.length);
 
   // Use the Blob API for better cross-browser compatibility
   const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
@@ -140,7 +153,11 @@ const convertToTxt = () => {
   <div class="container">
     <h1>Website Crawler</h1>
     <div class="input-group">
-      <input v-model="url" placeholder="Enter website URL" />
+      <input
+        v-model="url"
+        placeholder="Enter website URL"
+        @keyup.enter="handleKeyPress"
+      />
       <input v-model="maxPages" type="number" placeholder="Max pages to crawl" />
       <button @click="crawlWebsite" :disabled="loading">
         {{ loading ? "Crawling..." : "Crawl Website" }}
