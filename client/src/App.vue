@@ -35,6 +35,10 @@ const normalizedUrl = computed(() => {
   return normalizedUrl;
 });
 
+const isHttpUrl = computed(() => {
+  return normalizedUrl.value.startsWith("http://");
+});
+
 const isValidUrl = computed(() => {
   try {
     new URL(normalizedUrl.value);
@@ -228,6 +232,7 @@ const convertToTxt = () => {
       <button @click="downloadJSON" :disabled="!result">Download JSON</button>
       <button @click="convertToTxt" :disabled="!result">Download TXT</button>
     </div>
+    <div v-if="httpWarning" class="warning">{{ httpWarning }}</div>
     <div class="editor-container" ref="editorElement"></div>
   </div>
 </template>
@@ -260,5 +265,9 @@ const convertToTxt = () => {
 }
 :deep(.cm-activeLineGutter) {
   background-color: rgba(255, 255, 255, 0.1);
+}
+.warning {
+  color: #ff9800;
+  margin-bottom: 10px;
 }
 </style>
