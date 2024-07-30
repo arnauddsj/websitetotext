@@ -8,12 +8,6 @@ import { lineNumbers } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import DOMPurify from "dompurify";
 
-const apiUrl = import.meta.env.VITE_API_URL || "https://api.websitetotext.com";
-console.log("API URL being used:", apiUrl);
-
-axios.defaults.baseURL = apiUrl;
-axios.defaults.withCredentials = true;
-
 interface CrawlResult {
   pages: Array<{
     content: {
@@ -117,6 +111,8 @@ onMounted(() => {
   }
 });
 
+axios.defaults.withCredentials = true;
+
 const crawlWebsite = async () => {
   const now = Date.now();
   if (now - lastCrawlTime.value < CRAWL_COOLDOWN) {
@@ -136,30 +132,22 @@ const crawlWebsite = async () => {
   }
   loading.value = true;
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || "https://api.websitetotext.com";
-    console.log("Sending request to:", `${apiUrl}/crawl`);
-
-    const response = await fetch(`${apiUrl}/crawl`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: "https://websitetotext.com",
-      },
-      credentials: "include",
-      body: JSON.stringify({
+    console.log("Crawling URL:", normalizedUrl.value);
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_URL}/crawl`,
+      {
         url: normalizedUrl.value,
         max_pages: maxPages.value,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || "An error occurred");
-    }
-
-    const data = await response.json();
-    console.log("Response received:", data);
-    result.value = data.data;
+      },
+      {
+        headers: {
+          "X-CSRF-TOKEN":
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+            "",
+        },
+      }
+    );
+    result.value = response.data;
 
     // Update the editor content
     if (editorView.value) {
@@ -173,10 +161,8 @@ const crawlWebsite = async () => {
       });
     }
   } catch (error) {
-    console.error("Error details:", error);
-    alert(
-      "An error occurred while crawling the website. Please check the console for details."
-    );
+    console.error("Error:", error);
+    alert("An error occurred while crawling the website. Please try again later.");
   } finally {
     loading.value = false;
   }
@@ -217,7 +203,11 @@ const convertToTxt = () => {
     return [...headers, ...text];
   });
 
+  console.log("Processed content:", content);
+
   const txtContent = content.join("\n\n");
+
+  console.log("Final TXT content length:", txtContent.length);
 
   // Use the Blob API for better cross-browser compatibility
   const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
