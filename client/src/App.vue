@@ -28,6 +28,7 @@ const result = ref<CrawlResult | null>(null);
 const loading = ref(false);
 const editorElement = ref(null);
 const editorView = shallowRef<EditorView | null>(null);
+const httpWarning = ref(false);
 
 const normalizedUrl = computed(() => {
   let normalizedUrl = url.value.trim().toLowerCase();
@@ -35,10 +36,6 @@ const normalizedUrl = computed(() => {
     normalizedUrl = "https://" + normalizedUrl;
   }
   return normalizedUrl;
-});
-
-const isHttpUrl = computed(() => {
-  return normalizedUrl.value.startsWith("http://");
 });
 
 const isValidUrl = computed(() => {
@@ -247,7 +244,9 @@ const convertToTxt = () => {
       <button @click="downloadJSON" :disabled="!result">Download JSON</button>
       <button @click="convertToTxt" :disabled="!result">Download TXT</button>
     </div>
-    <div v-if="httpWarning" class="warning">{{ httpWarning }}</div>
+    <div v-if="httpWarning" class="warning">
+      <!-- Your warning message about HTTP -->
+    </div>
     <div class="editor-container" ref="editorElement"></div>
   </div>
 </template>

@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -8,21 +8,49 @@ import datetime
 import re
 from collections import Counter
 from fastapi.responses import JSONResponse
+import time
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Allow the Vue.js dev server
+    allow_origins=[os.getenv("CORS_ORIGIN")],  # Use environment variable
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class CrawlRequest(BaseModel):
-    url: str
+    url: HttpUrl
     max_pages: int = 10
+
+# Rate limiting
+request_count = {}
+RATE_LIMIT = 5  # requests
+RATE_LIMIT_WINDOW = 60  # seconds
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    current_time = time.time()
+    
+    if client_ip in request_count:
+        if current_time - request_count[client_ip]["timestamp"] > RATE_LIMIT_WINDOW:
+            request_count[client_ip] = {"count": 1, "timestamp": current_time}
+        else:
+            request_count[client_ip]["count"] += 1
+            if request_count[client_ip]["count"] > RATE_LIMIT:
+                raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    else:
+        request_count[client_ip] = {"count": 1, "timestamp": current_time}
+    
+    response = await call_next(request)
+    return response
 
 def extract_metadata(soup, url):
     metadata = {}
@@ -131,21 +159,26 @@ def crawl_website(base_url, max_pages):
     to_visit = [base_url]
     results = {}
 
+    start_time = time.time()
+    timeout = 30  # 30 seconds timeout
+
     while to_visit and len(visited) < max_pages:
+        if time.time() - start_time > timeout:
+            break
+
         url = to_visit.pop(0)
-        normalized_url = url.rstrip('/')  # Remove trailing slash
+        normalized_url = url.rstrip('/')
         if normalized_url in visited:
             continue
 
         try:
-            response = requests.get(url)
-            response.encoding = 'utf-8'  # Explicitly set encoding to UTF-8
+            response = requests.get(url, timeout=5)  # 5 seconds timeout for each request
+            response.encoding = 'utf-8'
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 results[normalized_url] = soup
                 visited.add(normalized_url)
 
-                # Find new links
                 for link in soup.find_all('a', href=True):
                     new_url = urljoin(url, link['href'])
                     new_normalized_url = new_url.rstrip('/')
@@ -202,8 +235,11 @@ def transform_result(raw_result, base_url):
 
 @app.post("/crawl")
 async def crawl(request: CrawlRequest):
-    raw_result = crawl_website(request.url, request.max_pages)
-    transformed_result = transform_result(raw_result, request.url)
+    if request.max_pages <= 0 or request.max_pages > 100:
+        raise HTTPException(status_code=400, detail="max_pages must be between 1 and 100")
+
+    raw_result = crawl_website(str(request.url), request.max_pages)
+    transformed_result = transform_result(raw_result, str(request.url))
     return JSONResponse(content=transformed_result, media_type="application/json; charset=utf-8")
 
 if __name__ == "__main__":
