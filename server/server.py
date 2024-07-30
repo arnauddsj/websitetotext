@@ -242,6 +242,10 @@ async def crawl(request: CrawlRequest):
     transformed_result = transform_result(raw_result, str(request.url))
     return JSONResponse(content=transformed_result, media_type="application/json; charset=utf-8")
 
+@app.get("/")
+async def root():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5202)
