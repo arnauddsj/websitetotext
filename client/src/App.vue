@@ -133,7 +133,7 @@ const crawlWebsite = async () => {
   loading.value = true;
   try {
     const response = await axios.post(
-      "http://localhost:8000/crawl",
+      `${import.meta.env.VITE_API_URL}/crawl`,
       {
         url: normalizedUrl.value,
         max_pages: maxPages.value,
