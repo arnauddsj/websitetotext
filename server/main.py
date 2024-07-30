@@ -11,19 +11,24 @@ from fastapi.responses import JSONResponse
 import time
 from dotenv import load_dotenv
 import os
+import logging
 
 load_dotenv()
 
 app = FastAPI()
 
-# Add CORS middleware
+# Update CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("CORS_ORIGIN")],  # Use environment variable
+    allow_origins=["https://websitetotext.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class CrawlRequest(BaseModel):
     url: HttpUrl
@@ -233,14 +238,29 @@ def transform_result(raw_result, base_url):
     
     return transformed
 
+@app.options("/crawl")
+async def crawl_options():
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "https://websitetotext.com",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
 @app.post("/crawl")
 async def crawl(request: CrawlRequest):
-    if request.max_pages <= 0 or request.max_pages > 100:
-        raise HTTPException(status_code=400, detail="max_pages must be between 1 and 100")
-
-    raw_result = crawl_website(str(request.url), request.max_pages)
-    transformed_result = transform_result(raw_result, str(request.url))
-    return JSONResponse(content=transformed_result, media_type="application/json; charset=utf-8")
+    logger.info(f"Received crawl request for URL: {request.url}")
+    logger.info(f"Request body: {request.dict()}")
+    try:
+        result = await crawl_website(request.url, request.max_pages)
+        logger.info(f"Crawl completed successfully. Result: {result}")
+        return {"status": "success", "data": result}
+    except Exception as e:
+        logger.error(f"Error during crawl: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
