@@ -132,6 +132,7 @@ const crawlWebsite = async () => {
   }
   loading.value = true;
   try {
+    console.log("Crawling URL:", normalizedUrl.value);
     const response = await axios.post(
       `${import.meta.env.VITE_API_URL}/crawl`,
       {
