@@ -147,7 +147,17 @@ const crawlWebsite = async () => {
         },
       }
     );
-    result.value = response.data;
+
+    // Ensure the response data has the expected structure
+    if (
+      response.data &&
+      response.data.website &&
+      Array.isArray(response.data.website.pages)
+    ) {
+      result.value = response.data.website;
+    } else {
+      throw new Error("Invalid response structure");
+    }
 
     // Update the editor content
     if (editorView.value) {
@@ -226,7 +236,7 @@ const convertToTxt = () => {
 
 <template>
   <div class="container">
-    <h1>Website Crawler</h1>
+    <h1>Website to text</h1>
     <div class="input-group">
       <input
         v-model="url"
@@ -249,6 +259,17 @@ const convertToTxt = () => {
       <!-- Your warning message about HTTP -->
     </div>
     <div class="editor-container" ref="editorElement"></div>
+    <footer class="flex-col items-center">
+      <div></div>
+      <div>
+        v0.1 - Share feedback or needed feature?
+        <a href="https://x.com/arnauddsj" target="_blank"> DM or Follow me on X</a>
+      </div>
+      <div>
+        Check out <a href="https://feedtext.ai" target="_blank">feedtext.ai</a> to convert
+        GitHub repos into text files!
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -256,7 +277,7 @@ const convertToTxt = () => {
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 10px;
 }
 .input-group {
   display: flex;
@@ -268,6 +289,7 @@ const convertToTxt = () => {
 }
 .editor-container {
   height: 600px;
+  max-width: 900px;
   border: 1px solid #ccc;
 }
 :deep(.cm-editor) {
@@ -284,5 +306,21 @@ const convertToTxt = () => {
 .warning {
   color: #ff9800;
   margin-bottom: 10px;
+}
+footer {
+  margin-top: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+footer a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
 }
 </style>
